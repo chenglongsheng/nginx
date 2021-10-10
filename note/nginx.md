@@ -238,6 +238,8 @@ cd /usr/local/nginx/conf/
 
 **1、实现**：浏览器访问www.123.com，得到的页面是Linux上tomcat服务器的8080端口
 
+
+
 **2、Linux上安装tomcat**
 
 ```shell
@@ -292,6 +294,8 @@ firewall-cmd --list-all
 
 本地浏览器访问虚拟机IP:8080
 
+
+
 **3、具体配置**
 
 （1）在windows上修改hosts文件（目录C:\Windows\System32\drivers\etc）
@@ -324,6 +328,8 @@ firewall-cmd --list-all
 **加上`192.168.40.128 www.123.com`**
 
 即使用www.123.com域名访问IP192.168.40.128
+
+
 
 （2）修改nginx配置
 
@@ -460,4 +466,107 @@ http {
 
 }
 ```
+
+
+
+### 2、实列二
+
+**1.实现**
+
+访问http://192.168.40.128:9001/edu/ 直接跳转127.0.0.1:8080
+
+访问http://192.168.40.128:9001/vod/ 直接跳转127.0.0.1:8081
+
+
+
+**2.准备两个tomcat服务，8080和8081**
+
+在/usr/src/中新建两个文件夹tomcat8080和tomcat8081
+
+```shell
+mkdir tomcat8080 tomcat8081
+```
+
+把apache-tomcat-xxx.tar.gz分别复制一份在两个文件夹中，并解压
+
+```shell
+tar -xvf apache-tomcat-xxx.tar.gz
+```
+
+**关闭之前启动的tomcat**
+
+启动两个服务器
+
+```shell
+cd /usr/src/tomcat8080/apache-tomcat-xxx/bin
+./start.sh
+```
+
+```
+cd /usr/src/tomcat8081/apache-tomcat-xxx/bin
+./start.sh
+```
+
+在浏览器中分别测试两个服务
+
+虚拟机IP:8080 
+
+虚拟机IP:8081
+
+
+
+**3.增加测试文件**
+
+使用远程管理工具在/usr/src/tomcat8080/apache-tomcat-xxx/webapps中新建文件夹edu，并在里面新建文件edu.html，以及编辑内容`<h1>edu!!!</h1>`
+
+使用远程管理工具在/usr/src/tomcat8081/apache-tomcat-xxx/webapps中新建文件夹vod，并在里面新建文件vod.html，以及编辑内容`<h1>vod!!!</h1>`
+
+在浏览器中测试（192.168.40.128为虚拟机IP）
+
+http://192.168.40.128:8080/edu/edu.html
+
+http://192.168.40.128:8081/vod/vod.html
+
+
+
+**4.配置nginx.conf**
+
+加入以下配置
+
+    server {
+            listen       9001;
+            server_name  192.168.40.128;
+    	location ~ /edu/ {
+            proxy_pass http://127.0.0.1:8080;
+        }
+        location ~ /vod/ {
+            proxy_pass http://127.0.0.1:8081;
+        }
+    }
+
+在这个服务中监听9001端口，服务名称是192.168.40.128
+
+ ~ /edu/是正则表达，出现edu就访问http://127.0.0.1:8080;
+
+**开发对外访问端口号8081，9001**
+
+重启nginx
+
+测试效果
+
+![](https://note-1010.oss-cn-beijing.aliyuncs.com/img/屏幕截图 2021-10-10 213942.png)
+
+![](https://note-1010.oss-cn-beijing.aliyuncs.com/img/屏幕截图 2021-10-10 214014.png)
+
+**location 指令说明**
+
+1、=：用于不含正则表达式的uri前，要求请求字符串与uri严格匹配，如果匹配成功，就停止继续搜索并立刻处理该请求。
+
+2、~：用于表示uri包含正则表达式，并区分大小写。
+
+3、~*：用于表达uri包含正则表达式，不区分大小写。
+
+4、^~：用于不含正则表达式的uri前，要求nginx服务器找到标识uri和请求字符串匹配度是最高的location后，立刻使用此location处理请求，而不再使用location块中的正则uri和请求字符串做匹配。
+
+**注意：如果 uri 包含正则表达式，则必须要有 ~ 或者 ~* 标识。**
 

@@ -143,7 +143,7 @@ cd /usr/local/nginx/sbin/
 查看nginx进程
 
 ```shell
-ps -ef grep | nginx
+ps -ef | grep nginx
 ```
 
 查看版本号
@@ -225,4 +225,239 @@ cd /usr/local/nginx/conf/
    一个 server 块可以配置多个 location 块。
 
    这块的主要作用是基于Nginx服务器接收到的请求字符串（例如 server_name/url-string），对虚拟主机名称（也可以是 IP 别名）之外的字符串（例如 前面的 /url-string）进行匹配，对特定的请求进行处理。地址定向、数据缓存和应答控制等功能，还有许多第三方模块的配置也在这里进行。
+
+
+
+# 五、配置实例
+
+
+
+## 1、反向代理
+
+### 1、实例一
+
+**1、实现**：浏览器访问www.123.com，得到的页面是Linux上tomcat服务器的8080端口
+
+**2、Linux上安装tomcat**
+
+```shell
+cd /usr/src
+```
+
+把文件通过工具传到Linux上，解压（XXX为版本号）
+
+```shell
+tar -xvf apache-tomcat-XXX
+```
+
+启动tomcat
+
+```shell
+cd apache-tomcat-XXX/bin
+```
+
+```shell
+./start.sh
+```
+
+查看日志
+
+```shell
+cd ..
+```
+
+```shell
+cd logs/
+```
+
+```shell
+tail -f catalina.out
+```
+
+开放防火墙端口号
+
+```shell
+firewall-cmd --add-port=8080/tcp --permanent
+```
+
+```shell
+firewall-cmd --reload
+```
+
+查看已经开放端口号
+
+```shell
+firewall-cmd --list-all
+```
+
+本地浏览器访问虚拟机IP:8080
+
+**3、具体配置**
+
+（1）在windows上修改hosts文件（目录C:\Windows\System32\drivers\etc）
+
+```
+# Copyright (c) 1993-2009 Microsoft Corp.
+#
+# This is a sample HOSTS file used by Microsoft TCP/IP for Windows.
+#
+# This file contains the mappings of IP addresses to host names. Each
+# entry should be kept on an individual line. The IP address should
+# be placed in the first column followed by the corresponding host name.
+# The IP address and the host name should be separated by at least one
+# space.
+#
+# Additionally, comments (such as these) may be inserted on individual
+# lines or following the machine name denoted by a '#' symbol.
+#
+# For example:
+#
+#      102.54.94.97     rhino.acme.com          # source server
+#       38.25.63.10     x.acme.com              # x client host
+
+# localhost name resolution is handled within DNS itself.
+#	127.0.0.1       localhost
+#	::1             localhost
+192.168.40.128 www.123.com
+```
+
+**加上`192.168.40.128 www.123.com`**
+
+即使用www.123.com域名访问IP192.168.40.128
+
+（2）修改nginx配置
+
+```shell
+cd /usr/local/nginx/conf
+```
+
+```shell
+vi nginx.conf
+```
+
+修改server_name为`server_name  192.168.40.128;`
+
+location中加上代理路径`proxy_pass http://127.0.0.1:8080;`
+
+**测试**windows浏览器访问www.123.com:80
+
+```
+#user  nobody;
+worker_processes  1;
+
+#error_log  logs/error.log;
+#error_log  logs/error.log  notice;
+#error_log  logs/error.log  info;
+
+#pid        logs/nginx.pid;
+
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    #log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+    #                  '$status $body_bytes_sent "$http_referer" '
+    #                  '"$http_user_agent" "$http_x_forwarded_for"';
+
+    #access_log  logs/access.log  main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    #keepalive_timeout  0;
+    keepalive_timeout  65;
+
+    #gzip  on;
+
+    server {
+        listen       80;
+        server_name  192.168.40.128;
+
+        #charset koi8-r;
+
+        #access_log  logs/host.access.log  main;
+
+        location / {
+            root   html;
+            proxy_pass http://127.0.0.1:8080;
+            index  index.html index.htm;
+        }
+
+        #error_page  404              /404.html;
+
+        # redirect server error pages to the static page /50x.html
+        #
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+        # proxy the PHP scripts to Apache listening on 127.0.0.1:80
+        #
+        #location ~ \.php$ {
+        #    proxy_pass   http://127.0.0.1;
+        #}
+
+        # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+        #
+        #location ~ \.php$ {
+        #    root           html;
+        #    fastcgi_pass   127.0.0.1:9000;
+        #    fastcgi_index  index.php;
+        #    fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+        #    include        fastcgi_params;
+        #}
+
+        # deny access to .htaccess files, if Apache's document root
+        # concurs with nginx's one
+        #
+        #location ~ /\.ht {
+        #    deny  all;
+        #}
+    }
+
+
+    # another virtual host using mix of IP-, name-, and port-based configuration
+    #
+    #server {
+    #    listen       8000;
+    #    listen       somename:8080;
+    #    server_name  somename  alias  another.alias;
+
+    #    location / {
+    #        root   html;
+    #        index  index.html index.htm;
+    #    }
+    #}
+
+
+    # HTTPS server
+    #
+    #server {
+    #    listen       443 ssl;
+    #    server_name  localhost;
+
+    #    ssl_certificate      cert.pem;
+    #    ssl_certificate_key  cert.key;
+
+    #    ssl_session_cache    shared:SSL:1m;
+    #    ssl_session_timeout  5m;
+
+    #    ssl_ciphers  HIGH:!aNULL:!MD5;
+    #    ssl_prefer_server_ciphers  on;
+
+    #    location / {
+    #        root   html;
+    #        index  index.html index.htm;
+    #    }
+    #}
+
+}
+```
 

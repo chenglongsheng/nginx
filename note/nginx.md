@@ -730,3 +730,107 @@ http://192.168.40.128/www/a.html
 
 http://192.168.40.128/image/a.bmp
 
+
+
+## 4、高可用集群
+
+**1、什么是高可用**
+
+![](C:/Users/CLS/Pictures/note/%E5%B1%8F%E5%B9%95%E6%88%AA%E5%9B%BE%202021-10-12%20142108.png)
+
+
+
+-  需要两台nginx服务器
+- 需要keepalived
+- 需要虚拟ip
+
+
+
+**2、配置**
+
+准备两台虚拟机
+
+在两台虚拟机中安装nginx和keepalived
+
+```shell
+yum install keepalived -y
+```
+
+记得关闭防火墙
+
+修改keepalived配置
+
+```
+cd /etc/keepalived
+```
+
+在配置文件中全部替换以下内容 **注释部分重点修改**
+
+```
+global_defs { 
+	notification_email { 
+         acassen@firewall.loc 
+         failover@firewall.loc 
+         sysadmin@firewall.loc 
+     } 
+     notification_email_from Alexandre.Cassen@firewall.loc 
+     smtp_server 192.168.40.132 
+     smtp_connect_timeout 30 
+     router_id LVS_DEVEL 
+} 
+vrrp_script chk_http_port { 
+     script "/usr/local/src/nginx_check.sh" 
+     interval 2 #（检测脚本执行的间隔） 
+     weight 2 
+} 
+vrrp_instance VI_1 { 
+     state BACKUP # 备份服务器上将 MASTER 改为 BACKUP 
+     interface ens33 //网卡 
+     virtual_router_id 51 # 主、备机的 virtual_router_id 必须相同 
+     priority 100 # 主、备机取不同的优先级，主机值较大，备份机值较小 
+     advert_int 1 
+     authentication { 
+     auth_type PASS 
+     auth_pass 1111 
+     } 
+     virtual_ipaddress { 
+     192.168.40.50 // VRRP H 虚拟地址 
+	}
+}
+```
+
+在/usr/local/src中放入nginx_check.sh脚本文件，检测nginx是否还活着
+
+其内容为
+
+```shell
+#!/bin/bash 
+A=`ps -C nginx –no-header |wc -l` 
+if [ $A -eq 0 ];then 
+ /usr/local/nginx/sbin/nginx 
+ sleep 2 
+ if [ `ps -C nginx --no-header |wc -l` -eq 0 ];then 
+ killall keepalived 
+ #当主服务器宕机，杀死所有主服务器的nginx进程，启用从服务器
+ fi 
+fi
+```
+
+
+
+**3、测试**
+
+启动 keepalived 和 nginx
+
+```shell
+systemctl start keepalived.service
+```
+
+![](https://note-1010.oss-cn-beijing.aliyuncs.com/img/屏幕截图 2021-10-12 193933.png)
+
+服务器绑定到虚拟ip
+
+（1）访问192.168.40.50
+
+（2）停止主服务器再访问192.168.40.50，从服务器会绑定到虚拟ip
+

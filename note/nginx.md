@@ -834,3 +834,57 @@ systemctl start keepalived.service
 
 （2）停止主服务器再访问192.168.40.50，从服务器会绑定到虚拟ip
 
+
+
+# 五、nginx原理
+
+
+
+## 1、worker和master
+
+![](https://note-1010.oss-cn-beijing.aliyuncs.com/img/屏幕截图 2021-10-12 195228.png)
+
+
+
+## 2、工作原理
+
+**争抢**
+
+![](https://note-1010.oss-cn-beijing.aliyuncs.com/img/屏幕截图 2021-10-12 195248.png)
+
+
+
+## 3、一个master和多个worker
+
+（1）可以热部署`nginx -s reload`
+
+（2）每个worker都是独立的进程，不造成服务中断
+
+（3）worker数=cpu数
+
+![](https://note-1010.oss-cn-beijing.aliyuncs.com/img/屏幕截图 2021-10-12 195034.png)
+
+**好处**
+
+​		首先，对于每个worker进程来说，独立的进程，不需要加锁，所以省略了锁带来的开销，同时在编程以及问题查找时，也会方便很多。其次，采用独立的进程可以让相互之间不会影响，一个进程退出后，其它进程还在工作，服务不会中断，master进程则很快启动新的worker进程。当然，worker进程的异常退出，肯定是程序有bug了，异常退出，会导致当前worker上的所有请求失败，不过不会影响到所有请求，所以降低了风险。
+
+**设置worker数量**
+
+​		nginx同redis类似都采用了io多路复用机制，每个worker都是一个独立的进程，但每个进程里只有一个主线程，通过异步非阻塞的方式来处理请求，即使是成千上万个请求也不在话下。每个worker的线程可以把一个cpu的性能发挥到极致。所以worker数和服务器的cpu数相等是最为合适的。少了浪费cpu，多了损耗cpu.
+
+
+
+
+
+*发送请求，占用worker多少连接数？*
+
+答：2或4。只调用静态资源是两个，加上调用tomcat连接数据库操作数据，4个
+
+
+
+*nginx有一个master，有四个worker，每个worker支持最大的连接数据1024，支持的**最大并发数**是多少？*
+
+答：静态访问是**worker_connecttion * worker_processes / 2**，
+
+​		HTTP作为反向代理是**worker_connecttion * worker_processes / 4**
+
